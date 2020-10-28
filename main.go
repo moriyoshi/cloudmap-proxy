@@ -92,7 +92,7 @@ func main() {
 	}
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	config, err := getAwsConfig()
+	sess, err := getAwsSession()
 	if err != nil {
 		log.Error().Err(err).Msg("fail to fetch aws configuration")
 		os.Exit(1)
@@ -112,7 +112,7 @@ func main() {
 	s, err := NewServer(
 		ctx,
 		NewUplookerCache(
-			NewCloudMapServiceUplooker(config),
+			NewCloudMapServiceUplooker(sess),
 			cacheTtl,
 		), listenAddr,
 		args[0],

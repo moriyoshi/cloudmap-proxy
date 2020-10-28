@@ -6,35 +6,33 @@ import (
 	"net"
 	"os"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/servicediscovery"
-	sdtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/servicediscovery"
 	"github.com/rs/zerolog/log"
 )
 
-func getAwsConfig() (cfg aws.Config, err error) {
-	cfg, err = config.LoadDefaultConfig()
+func getAwsSession() (sess *session.Session, err error) {
+	sess, err = session.NewSession()
 	if err != nil {
-		return
+		return nil, err
 	}
+
 	stsAssumeRoleArn := os.Getenv("AWS_STS_ASSUME_ROLE_ARN")
 	if stsAssumeRoleArn != "" {
-		sts := sts.NewFromConfig(cfg)
-		cfg.Credentials = stscreds.NewAssumeRoleProvider(sts, stsAssumeRoleArn)
+		sess.Config.Credentials = stscreds.NewCredentials(sess, stsAssumeRoleArn)
 	}
 	return
 }
 
 type CloudMapServiceUplooker struct {
-	sd *servicediscovery.Client
+	sd *servicediscovery.ServiceDiscovery
 }
 
-func NewCloudMapServiceUplooker(config aws.Config) *CloudMapServiceUplooker {
+func NewCloudMapServiceUplooker(sess *session.Session) *CloudMapServiceUplooker {
 	return &CloudMapServiceUplooker{
-		sd: servicediscovery.NewFromConfig(config),
+		sd: servicediscovery.New(sess),
 	}
 }
 
@@ -48,7 +46,7 @@ func toFields(fields map[string]*string) map[string]interface{} {
 
 func buildServiceInstanceFromInstance(id string, attrs map[string]*string) (si ServiceInstance, err error) {
 	si.InstanceId = id
-	if healthStatus, ok := attrs["AWS_INIT_HEALTH_STATUS"]; ok && healthStatus != nil && (*healthStatus) == "HEALTHY" {
+	if healthStatus, ok := attrs["AWS_INIT_HEALTH_STATUS"]; ok && healthStatus != nil && *healthStatus == "HEALTHY" {
 		si.Healthy = true
 	}
 	if ipv4AddrRepr, ok := attrs["AWS_INSTANCE_IPV4"]; ok && ipv4AddrRepr != nil {
@@ -72,7 +70,7 @@ func buildServiceInstanceFromInstance(id string, attrs map[string]*string) (si S
 	return
 }
 
-func buildServiceDescriptorFromInstances(namespaceName, serviceName string, instances []*sdtypes.HttpInstanceSummary) (sd *ServiceDescriptor, err error) {
+func buildServiceDescriptorFromInstances(namespaceName, serviceName string, instances []*servicediscovery.HttpInstanceSummary) (sd *ServiceDescriptor, err error) {
 	sd = &ServiceDescriptor{
 		NamespaceName: namespaceName,
 		ServiceName:   serviceName,
@@ -91,7 +89,7 @@ func (ul *CloudMapServiceUplooker) LookupService(ctx context.Context, namespaceN
 	if log.Debug().Enabled() {
 		log.Debug().Str("namespace_name", namespaceName).Str("service_name", serviceName).Msg("looking up service")
 	}
-	diOut, err := ul.sd.DiscoverInstances(ctx, &servicediscovery.DiscoverInstancesInput{NamespaceName: &namespaceName, ServiceName: &serviceName, HealthStatus: sdtypes.HealthStatusFilterHealthy})
+	diOut, err := ul.sd.DiscoverInstancesWithContext(ctx, &servicediscovery.DiscoverInstancesInput{NamespaceName: &namespaceName, ServiceName: &serviceName, HealthStatus: aws.String(servicediscovery.HealthStatusFilterHealthy)})
 	if err != nil {
 		return
 	}
