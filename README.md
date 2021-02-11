@@ -18,11 +18,11 @@ cloudmap-proxy [-cache-ttl TTL] [-conn-timeout TTL] [-debug] TARGET_ADDR LISTEN_
 
 * `-cache-ttl`
 
-    Specify cache duration. (default: 1m0s)  The value must followed by a duration unit.
+    Specify cache duration. (default: 1m0s)  The value must be followed by a duration unit.
 
 * `-conn-timeout`
 
-    Specify connection timeout. (default: 10s)  The value must followed by a duration unit.
+    Specify connection timeout. (default: 10s)  The value must be followed by a duration unit.
 
 * `-debug`
 
